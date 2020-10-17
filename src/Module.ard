@@ -1,0 +1,84 @@
+\import Algebra.Group
+\import Algebra.Group.Category
+\import Algebra.Monoid
+\import Algebra.Monoid.Category
+\import Algebra.Pointed
+\import Algebra.Ring
+\import Algebra.Ring.Category
+\import Algebra.Semiring
+\import Category
+\import Paths
+\import Paths.Meta
+\import Set
+\import Set.Category
+
+\func EndMonoid (C : Precat) (x : C) : Monoid (C.Hom x x) \cowith
+  | ide => C.id x
+  | * => C.o
+  | ide-left {f} => C.id-right f
+  | ide-right {f} => C.id-left f
+  | *-assoc {f} {g} {h} => inv (C.o-assoc h g f)
+
+\instance AbGroupEndMonoid (A : AbGroup) : Monoid (AbGroupHom A A) => EndMonoid AbGroupCategory A
+
+\instance AbGroupEndRing (A : AbGroup) : Ring (AbGroupHom A A)
+  | Monoid => AbGroupEndMonoid A
+  | zro => \new AbGroupHom {
+    | func _ => zro
+    | func-+ _ _ => inv zro-left
+  }
+  | + (f g : AbGroupHom A A) => \new AbGroupHom {
+    | func x => f.func x + g.func x
+    | func-+ x y =>
+      f.func (x + y) + g.func (x + y)               ==< pmap2 (+) (f.func-+ x y) (g.func-+ x y) >==
+      (f.func x + f.func y) + (g.func x + g.func y) ==< +-assoc >==
+      f.func x + (f.func y + (g.func x + g.func y)) ==< pmap (f.func x `+) (inv +-assoc) >==
+      f.func x + (f.func y + g.func x + g.func y)   ==< pmap (\lam t => f.func x + (t + g.func y)) +-comm >==
+      f.func x + (g.func x + f.func y + g.func y)   ==< pmap (f.func x `+) +-assoc >==
+      f.func x + (g.func x + (f.func y + g.func y)) ==< inv +-assoc >==
+      (f.func x + g.func x) + (f.func y + g.func y) `qed
+  }
+  | zro-left {_} => AbGroupHom.equals (\lam _ => A.zro-left)
+  | +-assoc {_} {_} {_} => AbGroupHom.equals (\lam _ => A.+-assoc)
+  | +-comm {_} {_} => AbGroupHom.equals (\lam _ => A.+-comm)
+  -- why do arguments suddenly become explicit here?
+  | ldistr (f g h : AbGroupHom) => AbGroupHom.equals (\lam x => f.func-+ _ _)
+  | rdistr (f g h : AbGroupHom) => idp
+  | negative (f : AbGroupHom) => \new AbGroupHom {
+    | func x => negative (f.func x)
+    | func-+ x y => pmap negative (f.func-+ x y) *> AddGroup.negative_+ _ _ *> +-comm  -- and why underscore instead of dash here?
+  }
+  | negative-left _ => AbGroupHom.equals (\lam _ => negative-left _)
+
+\class LeftModule \noclassifying (ring : Ring) \extends AbGroup
+  | \infix 7 ** : ring -> E -> E
+  | **-assoc (a b : ring) (m : E) : (a * b) ** m = a ** (b ** m)
+  | **-ldistr (a b : ring) (m : E) : (a ring.+ b) ** m = a ** m + b ** m  -- Arend is not able to infer the AddMonoid here, so we have to write ring.+
+  | **-rdistr (a : ring) (m n : E) : a ** (m + n) = a ** m + a ** n
+  | **-unit (m : E) : ide ** m = m
+  \where {
+    -- apprently `LeftModule R` does not put `R` in the place of `ring`.  how does Arend decide the order of fields when using \extend?
+    \func fromRingHom {A : Ring} (M : AbGroup) (f : RingHom A (AbGroupEndRing M)) : LeftModule { | ring => A | AbGroup => M } \cowith
+      | ** a m => AbGroupHom.func {f.func a} m
+      | **-assoc a b m => pmap (\lam (r : AbGroupHom M M) => r.func m) (f.func-* a b)
+      | **-ldistr a b m => pmap (\lam (r : AbGroupHom M M) => r.func m) (f.func-+ a b)
+      | **-rdistr a m n => AbGroupHom.func-+ {f.func a} m n
+      | **-unit m => pmap (\lam (r : AbGroupHom M M) => r.func m) f.func-ide
+
+    \func scalar {A : Ring} (M : LeftModule { | ring => A }) (a : A) : AbGroupHom M M \cowith
+      | func m => a ** m
+      | func-+ m n => **-rdistr a m n
+
+    \func toRingHom {A : Ring} (M : LeftModule { | ring => A }) : RingHom A (AbGroupEndRing M) \cowith
+      | func a => scalar M a
+      | func-+ a b => AbGroupHom.equals (\lam m => **-ldistr a b m)
+      | func-ide => AbGroupHom.equals (\lam m => **-unit m)
+      | func-* a b => AbGroupHom.equals (\lam m => **-assoc a b m)
+  }
+
+\instance SelfModule (A : Ring) : LeftModule { | ring => A | AbGroup => A }
+  | ** => *
+  | **-assoc _ _ _ => *-assoc
+  | **-ldistr => rdistr
+  | **-rdistr => ldistr
+  | **-unit _ => ide-left
