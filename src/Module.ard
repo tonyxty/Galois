@@ -82,3 +82,18 @@
   | **-ldistr => rdistr
   | **-rdistr => ldistr
   | **-unit _ => ide-left
+
+\record ModuleHom (ring : Ring) \extends AbGroupHom {
+  \override Dom : LeftModule { | ring => ring }
+  \override Cod : LeftModule { | ring => ring }
+  | func-** (a : ring) (m : Dom.E) : a LeftModule.** {Cod} (func m) = func (a LeftModule.** {Dom} m)  -- FIXME: writing just ** or even Cod.** results in error.  perhaps Arend is not handling \override properly?
+} \where {
+  \func equals {A : Ring} (M N : LeftModule { | ring => A }) {f g : ModuleHom { | ring => A | Dom => M | Cod => N }} (p : \Pi (x : M.E) -> f.func x = g.func x) : f = g =>
+    path (\lam i => \new ModuleHom {
+      | ring => A
+      | Dom => M
+      | Cod => N
+      | AbGroupHom => AbGroupHom.equals p @ i
+      | func-** a m => pathInProp (\lam j => a N.** (p m @ j) = p (a ** m) @ j) (f.func-** a m) (g.func-** a m) @ i
+    })
+}
