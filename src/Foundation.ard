@@ -1,0 +1,47 @@
+\import Equiv.Fiber
+\import HLevel
+\import Logic
+\import Paths
+
+-- subtypes
+\func Subtype (A : \Type) : \Type => A -> \Prop
+\func in {A : \Type} (x : A) (X : Subtype A) : \Prop => X x
+\func subtype {A : \Type} (B C : Subtype A) : \Prop => \Pi (x : A) -> x `in` B -> x `in` C
+
+-- interaction with injections (maps with prop-level fibers)
+-- note that although this is defined for maps between all types, it does not behave well when the target is not a set
+\record Injection {A B : \Type} (func : A -> B) {
+  | injectivity : \Pi (y : B) -> isProp (Fib func y)
+} \where {
+  \func byPathInv {A : \Type} {B : \Set} (f : A -> B) (pathInv : \Pi {x x' : A} -> f x = f x' -> x = x') : Injection f \cowith {
+    | injectivity (y : B) (fx fx' : Fib f y) =>
+      \let  -- ok, this looks Pascal-ish
+        | x => fx.1 | x' => fx'.1
+        | p : x = x' => pathInv (fx.2 *> (inv fx'.2))
+      \in
+        SigmaPropExt (f __ = y) fx fx' p
+  }
+  -- ideally, this should be a "member function"
+  \func pathInv (f : Injection) (x x' : f.A) (p : f.func x = f.func x') : x = x' =>
+    \let
+      | y => f.func x'
+      | fx : Fib f.func y => Fib.make f.func x p
+      | fx' : Fib f.func y => Fib.make f.func x' idp
+      | p => f.injectivity _ fx fx'
+    \in
+      path (\lam i => (p @ i).1)
+
+  \func fromSubtype {A : \Set} (X : Subtype A) : Injection \cowith
+    | A => \Sigma (x : A) (x `in` X)
+    | B => A
+    | func => __.1
+    | injectivity x fib1 fib2 =>
+      \let
+        | x1 => fib1.1.1 | x2 => fib2.1.1
+        | p : x1 = x2 => fib1.2 *> (inv fib2.2)
+        | q : fib1.1 = fib2.1 => SigmaPropExt X _ _ p
+      \in
+        SigmaPropExt (\lam (xX : \Sigma (x : A) (x `in` X)) => xX.1 = x) fib1 fib2 q
+  \func toSubtype {A : \Type} {B : \Set} (f : Injection {A} {B}) : Subtype B => \lam y =>
+      ToProp (Fib f.func y) (f.injectivity y)
+}
